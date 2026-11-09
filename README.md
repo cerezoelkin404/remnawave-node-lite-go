@@ -10,11 +10,35 @@ Remnawave Panel 的轻量级 Node 实现：以**单一可执行文件**配合安
 
 | 项目 | 说明 |
 | --- | --- |
-| 当前版本 | [v1.1.0](https://github.com/ike-sh/remnawave-node-lite-go/releases/tag/v1.1.0) |
+| 当前版本 | [v1.1.1](https://github.com/cerezoelkin404/remnawave-node-lite-go/releases/tag/v1.1.1) |
 | Panel 契约 | `@remnawave/node` v2.8.0（上报 `nodeVersion=2.8.0`） |
 | 变更日志 | [CHANGELOG.md](docs/CHANGELOG.md) |
 
-安装脚本默认拉取 GitHub 最新 Release；可通过环境变量 `RNL_TAG=v1.1.0` 指定版本。
+安装脚本默认取本仓库最新的 Release / tag；可通过环境变量 `RNL_TAG=v1.1.1` 指定版本。
+
+---
+
+## 仓库与资产来源
+
+本仓库是 [ike-sh/remnawave-node-lite-go](https://github.com/ike-sh/remnawave-node-lite-go) 的 fork，**所有部署脚本、下载地址、`doctor` 提示与 systemd unit 都已改为指向本仓库**：
+
+| 用途 | 地址 |
+| --- | --- |
+| 安装 / 升级 / 卸载脚本 | `raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/{main,vX.Y.Z}/scripts/...` |
+| 二进制资产（首选） | `github.com/cerezoelkin404/remnawave-node-lite-go/releases/download/{tag}/remnanode-lite_linux_{arch}.tar.gz` |
+| 二进制资产（兜底） | `raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/{tag,main}/dist/remnanode-lite_linux_{arch}.tar.gz` |
+
+fork 的 GitHub Actions 默认关闭，因此**没有 Release 资产**：此时安装脚本会自动回落到仓库内提交的 `dist/` 资产（同样是本仓库源码构建），不会回退到上游 `ike-sh`。
+
+自行重建并提交 `dist/`：
+
+```bash
+scripts/build-dist.sh            # 需要 docker（golang:1.26-bookworm）或本机 go
+git add dist && git commit -m "chore(dist): build vX.Y.Z"
+git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --tags
+```
+
+下载源可用环境变量覆盖：`RNL_ASSET_BASE=<URL 或本地目录>`（优先级最高，便于内网镜像/离线安装）、`RNL_TAG=<tag>`、`RNL_REPO=<owner/repo>`。
 
 ---
 
@@ -32,7 +56,7 @@ Remnawave Panel 的轻量级 Node 实现：以**单一可执行文件**配合安
 ### systemd（Debian / Ubuntu 等）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/scripts/install-node.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/main/scripts/install-node.sh | sudo bash
 ```
 
 交互菜单：**安装 · 升级 · 卸载 · 退出**
@@ -41,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/
 
 ```bash
 apk add --no-cache curl bash
-curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/scripts/install-node-alpine.sh -o /tmp/install-alpine.sh
+curl -fsSL https://raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/main/scripts/install-node-alpine.sh -o /tmp/install-alpine.sh
 bash /tmp/install-alpine.sh
 ```
 
@@ -62,7 +86,7 @@ bash /tmp/install-alpine.sh
 
 ```bash
 SECRET_KEY='eyJ...' NODE_PORT=2222 \
-  curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/scripts/install-node.sh \
+  curl -fsSL https://raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/main/scripts/install-node.sh \
   | sudo bash -s -- --yes
 ```
 
@@ -89,7 +113,7 @@ LOG_DIR=/var/log/remnanode
 ## 升级
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/scripts/upgrade.sh | sudo bash -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/main/scripts/upgrade.sh | sudo bash -s -- --yes
 ```
 
 升级保留现有 `node.env`、数据目录及 rw-core。同步升级 rw-core：
@@ -109,7 +133,7 @@ sudo RNL_UPGRADE_XRAY=1 bash upgrade.sh --yes
 | 命令行 | `bash uninstall.sh --full` | 等同完全卸载 |
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/main/scripts/uninstall.sh | bash -s -- --full
+curl -fsSL https://raw.githubusercontent.com/cerezoelkin404/remnawave-node-lite-go/main/scripts/uninstall.sh | bash -s -- --full
 ```
 
 ---

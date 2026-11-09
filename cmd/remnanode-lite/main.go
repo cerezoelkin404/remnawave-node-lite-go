@@ -41,6 +41,13 @@ func main() {
 			}
 			fmt.Println(version.ReleaseAssetURL(os.Args[2], os.Args[3]))
 			return
+		case "dist-url":
+			if len(os.Args) < 4 {
+				fmt.Fprintf(os.Stderr, "usage: remnanode-lite dist-url <tag> <arch>\n")
+				os.Exit(2)
+			}
+			fmt.Println(version.DistAssetURL(os.Args[2], os.Args[3]))
+			return
 		case "install-script-url":
 			if len(os.Args) < 4 {
 				fmt.Fprintf(os.Stderr, "usage: remnanode-lite install-script-url <tag> <script>\n")

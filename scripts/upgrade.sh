@@ -2,7 +2,7 @@
 # remnawave-node-lite-go 升级脚本（保留 node.env 与 rw-core）
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 PREFIX="/usr/local/bin"
 ETC_DIR="/etc/remnanode"
 UNIT="/etc/systemd/system/remnawave-node.service"
@@ -10,7 +10,7 @@ OPENRC_SVC="/etc/init.d/remnawave-node"
 RUN_WRAPPER="${PREFIX}/remnawave-node-run"
 BIN_NAME="remnanode-lite"
 NODE_ENV="${ETC_DIR}/node.env"
-REPO="${RNL_REPO:-ike-sh/remnawave-node-lite-go}"
+REPO="${RNL_REPO:-cerezoelkin404/remnawave-node-lite-go}"
 if ! command -v curl >/dev/null 2>&1; then
   echo "缺少命令：curl" >&2
   exit 1
@@ -40,8 +40,9 @@ usage() {
 Remnawave Node Lite (Go) 升级到 ${TAG}
 
 环境变量：
-  RNL_REPO           GitHub 仓库，默认 ike-sh/remnawave-node-lite-go
-  RNL_TAG            Release 标签；未设置时自动取 GitHub 最新 Release（回退 v${VERSION}）
+  RNL_REPO           GitHub 仓库，默认 cerezoelkin404/remnawave-node-lite-go
+  RNL_TAG            标签；未设置时自动取最新 Release / tag（回退 v${VERSION}）
+  RNL_ASSET_BASE     自托管资产根地址或本地目录（优先于 Release 与仓库内 dist/）
   RNL_UPGRADE_XRAY   设为 1 时同时运行 install-xray.sh
 EOF
 }
@@ -145,25 +146,42 @@ backup_binary() {
 
 download_binary() {
   local arch="$1"
+  local file="remnanode-lite_linux_${arch}.tar.gz"
+  local reported=""
   local url=""
   if [ -x "${PREFIX}/${BIN_NAME}" ]; then
-    url="$("${PREFIX}/${BIN_NAME}" release-url "${TAG}" "${arch}" 2>/dev/null || true)"
-  fi
-  if [ -z "${url}" ]; then
-    url="https://github.com/${REPO}/releases/download/${TAG}/remnanode-lite_linux_${arch}.tar.gz"
+    reported="$("${PREFIX}/${BIN_NAME}" release-url "${TAG}" "${arch}" 2>/dev/null || true)"
+    # 旧二进制（含上游 ike-sh 构建的 1.1.0）可能自报上游地址，只接受指向本仓库的
+    case "$reported" in
+      *"/${REPO}/"*) ;;
+      *) reported="" ;;
+    esac
   fi
   local tmp
   tmp="$(mktemp -d)"
 
   step "下载 ${BIN_NAME} ${TAG} (linux/${arch})"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] curl -fsSL ${url}"
+    echo "[dry-run] 候选下载地址："
+    {
+      [ -n "$reported" ] && printf '%s\n' "$reported"
+      asset_url_candidates "$REPO" "$TAG" "$file"
+    } | sed 's/^/[dry-run]   /'
     echo "[dry-run] install ${PREFIX}/${BIN_NAME}"
     rm -rf "$tmp"
     return 0
   fi
 
-  curl -fsSL "${url}" -o "${tmp}/archive.tar.gz"
+  if ! url="$(fetch_asset "$REPO" "$TAG" "$file" "${tmp}/archive.tar.gz" "$reported")"; then
+    echo "下载 ${file} 失败：所有候选地址均不可用。" >&2
+    print_asset_candidates "$REPO" "$TAG" "$file"
+    echo "提示：可用 RNL_ASSET_BASE=<URL 或本地目录> 指定自托管镜像，RNL_TAG=<tag> 指定版本。" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  echo "下载来源：${url}"
+  verify_asset_checksum "$url" "${tmp}/archive.tar.gz" "$file"
+
   tar -xzf "${tmp}/archive.tar.gz" -C "${tmp}"
   install -m 0755 "${tmp}/${BIN_NAME}" "${PREFIX}/${BIN_NAME}"
   rm -rf "$tmp"

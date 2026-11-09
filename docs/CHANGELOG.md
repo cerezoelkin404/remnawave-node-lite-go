@@ -3,6 +3,17 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。  
 仅记录面向用户/运维的 notable 变更；完整 diff 见 GitHub Releases。
 
+## [1.1.1] - 2026-07-25
+
+### 变更（fork 化部署）
+
+- **仓库地址全面指向本 fork**：`install-node.sh`、`install-node-alpine.sh`、`upgrade.sh`、`uninstall.sh` 的 `REPO` 默认值，以及 `internal/version/version.go`（`releaseRepo` → 导出为 `ReleaseRepo`）、`internal/doctor` 的修复提示、`deploy/remnawave-node.service` 的 `Documentation`、README 一键命令，全部改为 `cerezoelkin404/remnawave-node-lite-go`；运行时不再回落到上游 `ike-sh`。
+- **资产多源下载**：新增 `asset_url_candidates` / `fetch_asset` / `verify_asset_checksum`（`scripts/install-env-helpers.sh`），下载顺序为 `RNL_ASSET_BASE` → GitHub Release 资产 → 仓库内 `dist/`（tag）→ `dist/`（main），命中后按同目录 `SHA256SUMS` 校验；失败时打印全部候选地址。
+- **自托管二进制资产**：新增 `scripts/build-dist.sh`（docker `golang:1.26-bookworm` 或本机 go），产出并允许提交 `dist/remnanode-lite_linux_{amd64,arm64}.tar.gz` 与 `SHA256SUMS`，用于 fork 未启用 Actions / 没有 Release 时的一键安装。
+- **tag 解析增强**：`resolve_release_tag` 在无 Release 时回退到仓库最新 tag，`RNL_TAG` 仍可显式指定。
+- **`upgrade.sh` 不再信任旧二进制自报的上游地址**：仅接受指向本仓库的 `release-url` 结果，其余丢弃并走标准候选链。
+- 新增 `remnanode-lite dist-url <tag> <arch>` 子命令，输出仓库内 `dist/` 资产地址。
+
 ## [1.1.0] - 2026-06-30
 
 对齐上游 `@remnawave/node` v2.8.0。
@@ -173,6 +184,7 @@
 
 ---
 
+[1.1.1]: https://github.com/cerezoelkin404/remnawave-node-lite-go/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ike-sh/remnawave-node-lite-go/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ike-sh/remnawave-node-lite-go/releases/tag/v1.0.0
 [0.8.30]: https://github.com/ike-sh/remnawave-node-lite-go/releases/tag/v0.8.30

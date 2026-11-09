@@ -4,10 +4,12 @@
 !.env.example
 
 # Build outputs
+# 注意：dist/ 不在此列 —— 仓库内 dist/ 是「自托管二进制资产」，需要提交，
+# 由 scripts/build-dist.sh 生成，安装脚本在 fork 没有 Release 时回落到它。
 bin/
-dist/
 build/
 tmp/
+.build-dist-*/
 remnanode-lite
 remnanode-lite.exe
 

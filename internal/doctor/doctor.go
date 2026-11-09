@@ -126,7 +126,7 @@ func checkSystemdCapNetAdmin() result {
 		level:   "WARN",
 		title:   "systemd unit",
 		detail:  "未包含 AmbientCapabilities=CAP_NET_ADMIN",
-		fixHint: "sudo curl -fsSL https://raw.githubusercontent.com/ike-sh/remnawave-node-lite-go/v" + version.Version + "/deploy/remnawave-node.service -o " + defaultUnitPath + " && sudo systemctl daemon-reload && sudo systemctl restart remnawave-node",
+		fixHint: "sudo curl -fsSL https://raw.githubusercontent.com/" + version.ReleaseRepo + "/v" + version.Version + "/deploy/remnawave-node.service -o " + defaultUnitPath + " && sudo systemctl daemon-reload && sudo systemctl restart remnawave-node",
 	}
 }
 

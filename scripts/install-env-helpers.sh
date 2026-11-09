@@ -12,12 +12,111 @@ resolve_release_tag() {
       | tr -d '\n' \
       | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
       | head -n1)" || true
+    # Fork 上没有 GitHub Release（Actions 未启用）时退回最新 tag，
+    # 这样仍然能命中仓库内自托管的 dist/ 资产。
+    if [ -z "$tag" ]; then
+      tag="$(curl -fsSL -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/${repo}/tags" 2>/dev/null \
+        | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' \
+        | head -n1 \
+        | sed -e 's/.*"\([^"]*\)".*/\1/')" || true
+    fi
   fi
   if [ -n "$tag" ]; then
     printf '%s' "$tag"
   else
     printf '%s' "$fallback"
   fi
+}
+
+# ---------------------------------------------------------------------------
+# 二进制资产下载
+#
+# 候选顺序（任一命中即用）：
+#   1. ${RNL_ASSET_BASE}/<file>                       显式自托管（内网镜像 / file:// 目录）
+#   2. github.com/<repo>/releases/download/<tag>/<file>  GitHub Release 资产
+#   3. raw.githubusercontent.com/<repo>/<tag>/dist/<file>  仓库内自托管 dist（tag）
+#   4. raw.githubusercontent.com/<repo>/main/dist/<file>   仓库内自托管 dist（main 兜底）
+#
+# 第 3/4 项让 fork 在没有 Release、也没有启用 Actions 的情况下依然可以安装，
+# 且全程不会回落到 ike-sh 上游仓库。
+# ---------------------------------------------------------------------------
+
+asset_url_candidates() {
+  local repo="${1:?}"
+  local tag="${2:?}"
+  local file="${3:?}"
+  if [ -n "${RNL_ASSET_BASE:-}" ]; then
+    printf '%s\n' "${RNL_ASSET_BASE%/}/${file}"
+  fi
+  printf '%s\n' "https://github.com/${repo}/releases/download/${tag}/${file}"
+  printf '%s\n' "https://raw.githubusercontent.com/${repo}/${tag}/dist/${file}"
+  printf '%s\n' "https://raw.githubusercontent.com/${repo}/main/dist/${file}"
+}
+
+# 打印本次会尝试的下载地址（失败时给用户看，便于排查）
+print_asset_candidates() {
+  local repo="${1:?}"
+  local tag="${2:?}"
+  local file="${3:?}"
+  echo "尝试过的下载地址：" >&2
+  asset_url_candidates "$repo" "$tag" "$file" | sed 's/^/  - /' >&2
+}
+
+_asset_fetch_one() {
+  local url="$1"
+  local out="$2"
+  case "$url" in
+    file://*) cp "${url#file://}" "$out" 2>/dev/null ;;
+    /*) cp "$url" "$out" 2>/dev/null ;;
+    *) curl -fsSL --connect-timeout 10 --retry 2 --retry-delay 1 "$url" -o "$out" 2>/dev/null ;;
+  esac
+}
+
+# 下载 dist/ 或 Release 资产到 <out>。额外 URL（例如旧二进制自报的地址）优先尝试。
+# 成功时把命中的 URL 打到 stdout。
+fetch_asset() {
+  local repo="${1:?}"
+  local tag="${2:?}"
+  local file="${3:?}"
+  local out="${4:?}"
+  shift 4
+  local -a urls=("$@")
+  local url
+  while IFS= read -r url; do
+    urls+=("$url")
+  done < <(asset_url_candidates "$repo" "$tag" "$file")
+
+  for url in "${urls[@]}"; do
+    [ -n "$url" ] || continue
+    if _asset_fetch_one "$url" "$out"; then
+      printf '%s' "$url"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 若同目录存在 SHA256SUMS 则校验；缺失时静默跳过（老版本资产没有校验文件）。
+verify_asset_checksum() {
+  local url="$1"
+  local path="$2"
+  local file="$3"
+  local base sums want got
+  base="${url%/*}"
+  case "$base" in
+    /*|file://*) sums="$(cat "${base#file://}/SHA256SUMS" 2>/dev/null || true)" ;;
+    *) sums="$(curl -fsSL --connect-timeout 10 "${base}/SHA256SUMS" 2>/dev/null || true)" ;;
+  esac
+  [ -n "$sums" ] || return 0
+  want="$(printf '%s\n' "$sums" | awk -v f="$file" '$2 == f || $2 == "*" f { print $1; exit }')"
+  [ -n "$want" ] || return 0
+  got="$(sha256sum "$path" | awk '{ print $1 }')"
+  if [ "$want" != "$got" ]; then
+    echo "SHA256 校验失败：${file}（期望 ${want}，实际 ${got}）" >&2
+    return 1
+  fi
+  echo "SHA256 校验通过：${file}"
 }
 
 resolve_install_tag() {

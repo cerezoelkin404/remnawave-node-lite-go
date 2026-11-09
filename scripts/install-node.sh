@@ -2,7 +2,7 @@
 # remnawave-node-lite-go 一键安装脚本
 set -euo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 PREFIX="/usr/local/bin"
 ETC_DIR="/etc/remnanode"
 DATA_DIR="/var/lib/remnanode"
@@ -11,7 +11,7 @@ UNIT="/etc/systemd/system/remnawave-node.service"
 BIN_NAME="remnanode-lite"
 NODE_ENV="${ETC_DIR}/node.env"
 SECRET_FILE="${ETC_DIR}/secret.key"
-REPO="${RNL_REPO:-ike-sh/remnawave-node-lite-go}"  # must match internal/version/version.go releaseRepo
+REPO="${RNL_REPO:-cerezoelkin404/remnawave-node-lite-go}"  # must match internal/version/version.go releaseRepo
 if ! command -v curl >/dev/null 2>&1; then
   echo "缺少命令：curl" >&2
   exit 1
@@ -63,6 +63,12 @@ Remnawave Node Lite (Go) ${VERSION} — 安装 / 升级 / 卸载
 
 一键入口（推荐）：
   curl -fsSL https://raw.githubusercontent.com/${REPO}/main/scripts/install-node.sh | sudo bash
+
+环境变量：
+  RNL_REPO         GitHub 仓库，默认 cerezoelkin404/remnawave-node-lite-go
+  RNL_TAG          标签；未设置时自动取最新 Release / tag（回退 v${VERSION}）
+  RNL_ASSET_BASE   自托管资产根地址或本地目录（优先于 Release 与仓库内 dist/）
+  RNL_SKIP_XRAY    设为 1 跳过 rw-core 安装
 EOF
 }
 
@@ -369,19 +375,30 @@ detect_arch() {
 
 download_binary() {
   local arch="$1"
-  local url="https://github.com/${REPO}/releases/download/${TAG}/remnanode-lite_linux_${arch}.tar.gz"
+  local file="remnanode-lite_linux_${arch}.tar.gz"
+  local url=""
   local tmp
   tmp="$(mktemp -d)"
 
   step "下载 ${BIN_NAME} ${TAG} (linux/${arch})"
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] curl -fsSL ${url}"
+    echo "[dry-run] 候选下载地址："
+    asset_url_candidates "$REPO" "$TAG" "$file" | sed 's/^/[dry-run]   /'
     echo "[dry-run] install ${PREFIX}/${BIN_NAME}"
     rm -rf "$tmp"
     return 0
   fi
 
-  curl -fsSL "${url}" -o "${tmp}/archive.tar.gz"
+  if ! url="$(fetch_asset "$REPO" "$TAG" "$file" "${tmp}/archive.tar.gz")"; then
+    echo "下载 ${file} 失败：所有候选地址均不可用。" >&2
+    print_asset_candidates "$REPO" "$TAG" "$file"
+    echo "提示：可用 RNL_ASSET_BASE=<URL 或本地目录> 指定自托管镜像，RNL_TAG=<tag> 指定版本。" >&2
+    rm -rf "$tmp"
+    exit 1
+  fi
+  echo "下载来源：${url}"
+  verify_asset_checksum "$url" "${tmp}/archive.tar.gz" "$file"
+
   tar -xzf "${tmp}/archive.tar.gz" -C "${tmp}"
   install -m 0755 "${tmp}/${BIN_NAME}" "${PREFIX}/${BIN_NAME}"
   rm -rf "$tmp"
